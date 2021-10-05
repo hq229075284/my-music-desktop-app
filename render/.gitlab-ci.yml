@@ -1,0 +1,33 @@
+# cache:
+#   paths:
+#     - node_modules
+
+before_script:
+  - PATH=/gitlab-runner/node/bin:$PATH
+  - echo $PATH
+  - cp -f /sources.list /etc/apt/sources.list
+  - 'which ssh-agent || ( apt update -y && apt install openssh-client -y )'
+  - mkdir -p ~/.ssh
+  - cp /gitlab-runner/id_rsa ~/.ssh/id_rsa
+  - chmod -R 700 ~/.ssh
+  - eval $(ssh-agent -s)
+  - ssh-agent bash
+  - ssh-add ~/.ssh/id_rsa
+  - echo -e "Host *\\n\\tStrictHostKeyChecking no\\n" > ~/.ssh/config
+  - npm config set registry http://192.168.2.130:9000
+
+dev:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "deploy-dev"'
+      when: always
+  script:
+    - npm install
+    - npm run build:stage
+
+  after_script:
+    - echo $PATH
+    - PATH=/gitlab-runner/node/bin:$PATH
+    - PROJECT_NAME=$(node -e 'var pkg=require("./package.json");console.log(pkg.name)')
+    - echo $PROJECT_NAME
+    - ssh dcxx@192.168.2.130 rm -fr "/home/dcxx/web/${PROJECT_NAME}"
+    - scp -r ./dist "dcxx@192.168.2.130:/home/dcxx/web/${PROJECT_NAME}"
